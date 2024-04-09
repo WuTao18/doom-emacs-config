@@ -190,7 +190,12 @@ otherwise this function don't work and don't know the reason
 (defun insert-now-timestamp-inactive ()
   "Insert org mode inactive timestamp at point with current date and time."
   (interactive)
-  (org-time-stamp-inactive (current-time)))
+  ; (org-time-stamp-inactive (current-time)))
+  (org-insert-time-stamp nil t t nil nil nil))
+
+(map! :after org
+      :map org-mode-map
+      "C-c i" #'insert-now-timestamp-inactive)
 
 ;; ========= pyim =========
 (add-load-path! "~/.doom.d/packages/pyim")
@@ -218,7 +223,7 @@ otherwise this function don't work and don't know the reason
 
 ;; 金手指设置，可以将光标处的编码（比如：拼音字符串）转换为中文。
 ;;(global-set-key (kbd "M-j") 'pyim-convert-string-at-point)
-(global-set-key (kbd "M-n") 'pyim-convert-string-at-point)
+(global-set-key (kbd "M-m") 'pyim-convert-string-at-point)
 
 ;; 按 "C-<return>" 将光标前的 regexp 转换为可以搜索中文的 regexp.
 (define-key
@@ -239,17 +244,36 @@ otherwise this function don't work and don't know the reason
 ;; 2. 光标前是汉字字符时，才能输入中文。
 ;; 3. 使用 M-j 快捷键，强制将光标前的拼音字符串转换为中文。
 (setq-default pyim-english-input-switch-functions
-              ;;                '(pyim-probe-dynamic-english
-              '(pyim-probe-auto-english
-                ;;                  pyim-probe-isearch-mode
-                pyim-probe-program-mode pyim-probe-org-structure-template))
+              '(pyim-probe-dynamic-english
+              ; '(pyim-probe-auto-english
+                pyim-probe-isearch-mode
+                pyim-probe-program-mode
+		pyim-probe-org-structure-template))
 
 (setq-default pyim-punctuation-half-width-functions
               '(pyim-probe-punctuation-line-beginning
                 pyim-probe-punctuation-after-punctuation))
 
 ;; 开启代码搜索中文功能（比如拼音，五笔码等）
-;; (pyim-isearch-mode 1)
+(pyim-isearch-mode 1)
+
+;; 让 vertico, selectrum 等补全框架，通过 orderless 支持拼音搜索候选项功能。
+(defun my-orderless-regexp (orig-func component)
+  (let ((result (funcall orig-func component)))
+    (pyim-cregexp-build result)))
+;; 以下解决 在vertico 搜索时按 C-n C-p 卡顿的问题
+(defun my/pyim-advice-add ()
+  (advice-add 'orderless-regexp :around #'my-orderless-regexp))
+
+(defun my/pyim-advice-remove (&optional n)
+  (advice-remove 'orderless-regexp #'my-orderless-regexp))
+
+(advice-add  #'vertico-next :before #'my/pyim-advice-remove)
+(advice-add  #'vertico-previous :before #'my/pyim-advice-remove)
+(advice-add  'abort-recursive-edit :before #'my/pyim-advice-add)
+(advice-add  'abort-minibuffers :before #'my/pyim-advice-add)
+(advice-add  'exit-minibuffer :before #'my/pyim-advice-add)
+(my/pyim-advice-add)   ;; 默认开启
 
 (add-load-path! "~/.doom.d/packages/pyim-tsinghua-dict")
 (require 'pyim-tsinghua-dict)
@@ -275,6 +299,12 @@ otherwise this function don't work and don't know the reason
  (org-roam-db-autosync-mode)
  ;; If using org-roam-protocol
  (require 'org-roam-protocol))
+
+(setq org-roam-dailies-capture-templates
+      '(("d" "default" entry
+         "* %U %?"
+         :target (file+head "%<%Y-%m-%d>.org"
+                            "#+title: %<%Y-%m-%d>\n"))))
 
 (use-package! websocket :after org-roam)
 
